@@ -79,10 +79,20 @@ API_KEY  = _API_KEYS[0]
 
 # ── Gemini API 키 (st.secrets에서 자동 로드) ──
 def _get_gemini_key() -> str:
+    """secrets에서 Google API 키를 찾아 반환. 가능한 키 이름을 모두 시도."""
+    candidates = [
+        "GOOGLE_API_KEY", "google_api_key",
+        "GEMINI_API_KEY", "gemini_api_key",
+        "google", "gemini",
+    ]
     try:
-        return st.secrets.get("GOOGLE_API_KEY", "") or st.secrets.get("google_api_key", "")
+        for k in candidates:
+            v = st.secrets.get(k, "")
+            if v:
+                return v
     except Exception:
-        return ""
+        pass
+    return ""
 
 FOOD_TYPES = {
     "음료류": [
@@ -323,43 +333,76 @@ def ai_tab(df: pd.DataFrame, label: str, oai_key: str = ""):
 
     gemini_key = _get_gemini_key()
     if not gemini_key:
-        st.warning("⚠️ st.secrets에 GOOGLE_API_KEY가 설정되지 않았습니다.")
+        st.warning(
+            "⚠️ Gemini API 키를 찾을 수 없습니다.\n\n"
+            "`.streamlit/secrets.toml`에 아래 중 하나를 추가하세요:\n"
+            "`GOOGLE_API_KEY = 'AIza...'` 또는 `GEMINI_API_KEY = 'AIza...'`"
+        )
         return
 
-    st.caption(f"분석 대상: 최대 150건 / Gemini 2.0 Flash (secrets 키 사용)")
-    if not st.button("🔍 AI 분석 실행", key=f"ai_{label[:8]}", type="primary"):
+    # 모델 우선순위: 최신 → 안정
+    GEMINI_MODELS = [
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-pro",
+    ]
+
+    _btn_key = "ai_" + "".join(c for c in label if c.isalnum())[:12]
+    st.caption(f"분석 대상: 최대 150건 / Gemini (secrets 자동 로드)")
+    if not st.button("🔍 AI 분석 실행", key=_btn_key, type="primary"):
         return
 
     sample   = df.head(150).copy()
-    has_ingr = "주요원재료" in sample.columns
+    has_ingr = "주요원재료" in sample.columns and sample["주요원재료"].astype(str).str.strip().ne("").any()
     lines = [
         f"{row['제품명']} / {row['주요원재료'] if has_ingr else ''}"
         for _, row in sample.fillna("").iterrows()
     ]
 
-    prompt = f"""식품 R&D 전문가입니다. 아래 제품 목록을 분석해 JSON만 반환하세요.
-JSON 외 텍스트·마크다운 코드블록 절대 금지.
-형식: {{"flavors":{{"딸기":12,"복숭아":8}},"concepts":{{"제로슈거":15,"탄산":6}}}}
-flavors: 주요 플레이버/과일/향 (딸기,복숭아,사과,레몬,오렌지,포도,망고,파인애플,메론,자몽,블루베리,라임,녹차,홍차,커피,콜라,오리지널,기타)
-concepts: 마케팅·기능 컨셉 (제로슈거,저칼로리,탄산,프리미엄,유기농,기능성,비타민,단백질,발효,식이섬유,무첨가,어린이,기타)
-각 값은 제품 수(정수), 상위 10개.
+    prompt = (
+        "식품 R&D 전문가입니다. 아래 제품 목록을 분석해 JSON만 반환하세요.\n"
+        "JSON 외 텍스트·마크다운 코드블록 절대 금지.\n"
+        'flavors: 주요 플레이버/과일/향 (딸기,복숭아,사과,레몬,오렌지,포도,망고,파인애플,메론,자몽,블루베리,라임,녹차,홍차,커피,콜라,오리지널,기타)\n'
+        'concepts: 마케팅·기능 컨셉 (제로슈거,저칼로리,탄산,프리미엄,유기농,기능성,비타민,단백질,발효,식이섬유,무첨가,어린이,기타)\n'
+        '각 값은 제품 수(정수), 상위 10개.\n'
+        '반환 형식 예시: {"flavors":{"딸기":12},"concepts":{"제로슈거":15}}\n\n'
+        f"{len(lines)}개 제품:\n" + "\n".join(lines)
+    )
 
-{len(lines)}개 제품:
-""" + "\n".join(lines)
+    result = None
+    last_err = ""
+    with st.spinner("Gemini 분석 중…"):
+        for model in GEMINI_MODELS:
+            try:
+                r = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}",
+                    headers={"Content-Type": "application/json"},
+                    json={"contents": [{"parts": [{"text": prompt}]}],
+                          "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800}},
+                    timeout=60,
+                )
+                if r.status_code != 200:
+                    last_err = f"[{model}] HTTP {r.status_code}: {r.text[:300]}"
+                    continue
+                raw_json  = r.json()
+                content   = raw_json["candidates"][0]["content"]["parts"][0]["text"].strip()
+                content   = content.replace("```json", "").replace("```", "").strip()
+                result    = json.loads(content)
+                st.caption(f"✅ 사용 모델: {model}")
+                break
+            except json.JSONDecodeError as e:
+                last_err = f"[{model}] JSON 파싱 실패: {content[:200]}"
+                continue
+            except Exception as e:
+                last_err = f"[{model}] {type(e).__name__}: {e}"
+                continue
 
-    try:
-        r = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
-            headers={"Content-Type": "application/json"},
-            json={"contents": [{"parts": [{"text": prompt}]}]},
-            timeout=60,
-        )
-        r.raise_for_status()
-        content = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        content = content.replace("```json", "").replace("```", "").strip()
-        result  = json.loads(content)
-    except Exception as e:
-        st.error(f"Gemini 오류: {e}")
+    if result is None:
+        st.error(f"❌ 모든 모델 실패. 마지막 오류:\n{last_err}")
+        with st.expander("🔬 디버그 정보"):
+            _dbg = f"키 앞 8자: {gemini_key[:8]}...\n시도 모델: {GEMINI_MODELS}\n마지막 오류: {last_err}"
+            st.code(_dbg)
         return
 
     flavors  = result.get("flavors", {})
