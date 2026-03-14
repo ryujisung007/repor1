@@ -78,21 +78,28 @@ _pool = st.session_state["_key_pool"]
 API_KEY  = _API_KEYS[0]
 
 # ── Gemini API 키 (st.secrets에서 자동 로드) ──
-def _get_gemini_key() -> str:
-    """secrets에서 Google API 키를 찾아 반환. 가능한 키 이름을 모두 시도."""
-    candidates = [
-        "GOOGLE_API_KEY", "google_api_key",
-        "GEMINI_API_KEY", "gemini_api_key",
-        "google", "gemini",
-    ]
+def _get_ai_key() -> tuple:
+    """
+    secrets에서 AI API 키를 찾아 (key, provider) 반환.
+    OPENAI_API_KEY → GPT-4o-mini
+    GEMINI_API_KEY → Gemini 1.5 Flash
+    """
     try:
-        for k in candidates:
+        for k in ["OPENAI_API_KEY", "openai_api_key", "openai"]:
             v = st.secrets.get(k, "")
-            if v:
-                return v
+            if v and str(v).strip():
+                return str(v).strip(), "openai"
+        for k in ["GEMINI_API_KEY", "gemini_api_key", "GOOGLE_API_KEY", "google_api_key"]:
+            v = st.secrets.get(k, "")
+            if v and str(v).strip():
+                return str(v).strip(), "gemini"
     except Exception:
         pass
-    return ""
+    return "", ""
+
+def _get_openai_key() -> str:
+    key, _ = _get_ai_key()
+    return key
 
 FOOD_TYPES = {
     "음료류": [
@@ -331,25 +338,21 @@ def product_table(df: pd.DataFrame, show_type: bool, pfx: str):
 def ai_tab(df: pd.DataFrame, label: str, oai_key: str = ""):
     st.markdown(f"### 🤖 AI 현황분석 — {label}")
 
-    gemini_key = _get_gemini_key()
-    if not gemini_key:
+    api_key, provider = _get_ai_key()
+    if not api_key:
         st.warning(
-            "⚠️ Gemini API 키를 찾을 수 없습니다.\n\n"
-            "`.streamlit/secrets.toml`에 아래 중 하나를 추가하세요:\n"
-            "`GOOGLE_API_KEY = 'AIza...'` 또는 `GEMINI_API_KEY = 'AIza...'`"
+            "⚠️ AI API 키를 찾을 수 없습니다.\n\n"
+            "`.streamlit/secrets.toml` 형식을 확인하세요:\n"
+            "```\nOPENAI_API_KEY = \"sk-...\"\n"
+            "GEMINI_API_KEY = \"AIza...\"\n```"
         )
         return
 
-    # 모델 우선순위: 최신 → 안정
-    GEMINI_MODELS = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-pro",
-    ]
+    model_name = "GPT-4o-mini" if provider == "openai" else "Gemini 1.5 Flash"
+    key_name   = "OPENAI_API_KEY" if provider == "openai" else "GEMINI_API_KEY"
+    _btn_key   = "ai_" + "".join(c for c in label if c.isalnum())[:12]
 
-    _btn_key = "ai_" + "".join(c for c in label if c.isalnum())[:12]
-    st.caption(f"분석 대상: 최대 150건 / Gemini (secrets 자동 로드)")
+    st.caption(f"분석 대상: 최대 150건 / {model_name} ({key_name} 로드됨 ✅)")
     if not st.button("🔍 AI 분석 실행", key=_btn_key, type="primary"):
         return
 
@@ -360,49 +363,62 @@ def ai_tab(df: pd.DataFrame, label: str, oai_key: str = ""):
         for _, row in sample.fillna("").iterrows()
     ]
 
-    prompt = (
-        "식품 R&D 전문가입니다. 아래 제품 목록을 분석해 JSON만 반환하세요.\n"
-        "JSON 외 텍스트·마크다운 코드블록 절대 금지.\n"
-        'flavors: 주요 플레이버/과일/향 (딸기,복숭아,사과,레몬,오렌지,포도,망고,파인애플,메론,자몽,블루베리,라임,녹차,홍차,커피,콜라,오리지널,기타)\n'
-        'concepts: 마케팅·기능 컨셉 (제로슈거,저칼로리,탄산,프리미엄,유기농,기능성,비타민,단백질,발효,식이섬유,무첨가,어린이,기타)\n'
-        '각 값은 제품 수(정수), 상위 10개.\n'
-        '반환 형식 예시: {"flavors":{"딸기":12},"concepts":{"제로슈거":15}}\n\n'
-        f"{len(lines)}개 제품:\n" + "\n".join(lines)
+    sys_msg = (
+        "식품 R&D 전문가입니다. 제품 목록을 분석해 JSON만 반환하세요. "
+        "JSON 외 텍스트·마크다운 코드블록 절대 금지. "
+        "flavors: 주요 플레이버/과일/향 (딸기,복숭아,사과,레몬,오렌지,포도,망고,파인애플,메론,자몽,블루베리,라임,녹차,홍차,커피,콜라,오리지널,기타) "
+        "concepts: 마케팅·기능 컨셉 (제로슈거,저칼로리,탄산,프리미엄,유기농,기능성,비타민,단백질,발효,식이섬유,무첨가,어린이,기타) "
+        "각 값은 제품 수(정수), 상위 10개. "
+        '반환 형식: {"flavors":{"딸기":12},"concepts":{"제로슈거":15}}'
     )
+    user_msg = f"{len(lines)}개 제품:\n" + "\n".join(lines)
 
-    result = None
+    result   = None
     last_err = ""
-    with st.spinner("Gemini 분석 중…"):
-        for model in GEMINI_MODELS:
-            try:
+    content  = ""
+
+    with st.spinner(f"{model_name} 분석 중…"):
+        try:
+            if provider == "openai":
                 r = requests.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}",
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={"model": "gpt-4o-mini",
+                          "messages": [{"role": "system", "content": sys_msg},
+                                       {"role": "user",   "content": user_msg}],
+                          "temperature": 0.2, "max_tokens": 800},
+                    timeout=60,
+                )
+                if r.status_code != 200:
+                    last_err = f"HTTP {r.status_code}: {r.text[:400]}"
+                else:
+                    content = r.json()["choices"][0]["message"]["content"].strip()
+            else:
+                r = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
                     headers={"Content-Type": "application/json"},
-                    json={"contents": [{"parts": [{"text": prompt}]}],
+                    json={"contents": [{"parts": [{"text": sys_msg + "\n\n" + user_msg}]}],
                           "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800}},
                     timeout=60,
                 )
                 if r.status_code != 200:
-                    last_err = f"[{model}] HTTP {r.status_code}: {r.text[:300]}"
-                    continue
-                raw_json  = r.json()
-                content   = raw_json["candidates"][0]["content"]["parts"][0]["text"].strip()
-                content   = content.replace("```json", "").replace("```", "").strip()
-                result    = json.loads(content)
-                st.caption(f"✅ 사용 모델: {model}")
-                break
-            except json.JSONDecodeError as e:
-                last_err = f"[{model}] JSON 파싱 실패: {content[:200]}"
-                continue
-            except Exception as e:
-                last_err = f"[{model}] {type(e).__name__}: {e}"
-                continue
+                    last_err = f"HTTP {r.status_code}: {r.text[:400]}"
+                else:
+                    content = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+            if content and not last_err:
+                content = content.replace("```json", "").replace("```", "").strip()
+                result  = json.loads(content)
+
+        except json.JSONDecodeError:
+            last_err = f"JSON 파싱 실패: {content[:200]}"
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
 
     if result is None:
-        st.error(f"❌ 모든 모델 실패. 마지막 오류:\n{last_err}")
+        st.error(f"❌ {model_name} 분석 실패: {last_err}")
         with st.expander("🔬 디버그 정보"):
-            _dbg = f"키 앞 8자: {gemini_key[:8]}...\n시도 모델: {GEMINI_MODELS}\n마지막 오류: {last_err}"
-            st.code(_dbg)
+            st.code(f"provider: {provider}\n키 앞 8자: {api_key[:8]}...\n오류: {last_err}")
         return
 
     flavors  = result.get("flavors", {})
@@ -578,7 +594,12 @@ with st.sidebar:
     st.markdown("---")
     st.caption(f"📡 식품안전나라 I1250 API")
     st.caption(f"🔑 키 {len(_API_KEYS)}개 · 일 {_pool.total_limit:,}회 한도")
-    st.caption("🤖 AI분석: Gemini (secrets)")
+    _ai_key_chk, _ai_prov = _get_ai_key()
+    if _ai_key_chk:
+        _prov_label = "GPT-4o-mini" if _ai_prov == "openai" else "Gemini"
+        st.caption(f"🤖 AI: {_prov_label} ✅ 키 로드됨")
+    else:
+        st.caption("🤖 AI: ⚠️ secrets 키 없음")
 
 
 # ───────────────────────────────
