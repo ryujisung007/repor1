@@ -14,6 +14,12 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
+try:
+    import google.generativeai as genai
+    GENAI_AVAILABLE = True
+except ImportError:
+    GENAI_AVAILABLE = False
+
 # ━━━ 스타일 ━━━
 st.markdown("""
 <style>
@@ -308,6 +314,133 @@ def fetch_multiple_types(types_list: list, per_type: int = 20) -> tuple:
 
 
 # ══════════════════════════════════════════════════════
+#  Gemini AI 분석
+# ══════════════════════════════════════════════════════
+
+def _get_gemini_model(api_key: str, model_name: str):
+    """
+    Gemini 모델 객체 반환.
+    - @st.cache_data 안에 넣으면 직렬화 오류가 나므로 반드시 밖에서 생성.
+    - 결과 텍스트만 캐시.
+    """
+    if not GENAI_AVAILABLE:
+        raise ImportError("google-generativeai 패키지가 설치되어 있지 않습니다.\n"
+                          "pip install google-generativeai")
+    if not api_key or not api_key.strip():
+        raise ValueError("Gemini API 키가 비어 있습니다.\n"
+                         "사이드바에서 API 키를 입력하거나 secrets.toml에 설정하세요.")
+    genai.configure(api_key=api_key.strip())
+    return genai.GenerativeModel(model_name)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _cached_gemini(prompt: str, api_key: str, model_name: str) -> str:
+    """
+    결과 텍스트만 캐시 (모델 객체는 캐시 불가).
+    같은 prompt + key + model 조합이면 30분간 재사용.
+    """
+    model = _get_gemini_model(api_key, model_name)
+    resp  = model.generate_content(prompt)
+    return resp.text
+
+
+def run_gemini_analysis(df: pd.DataFrame, food_type: str,
+                        api_key: str, model_name: str) -> dict:
+    """
+    4가지 분석을 순차 실행하고 결과 dict 반환.
+    각 분석은 독립 프롬프트 → 별도 캐시.
+    """
+    if df.empty:
+        return {}
+
+    # ── 공통 컨텍스트 데이터 준비 ──
+    total        = len(df)
+    maker_top10  = (
+        df["제조사"].value_counts().head(10).to_dict()
+        if "제조사" in df.columns else {}
+    )
+    recent_prods = []
+    if "제품명" in df.columns and "보고일자" in df.columns:
+        recent_prods = (
+            df[["제품명", "제조사", "보고일자"]]
+            .head(30)
+            .to_dict(orient="records")
+        ) if "제조사" in df.columns else (
+            df[["제품명", "보고일자"]].head(30).to_dict(orient="records")
+        )
+
+    monthly_trend = {}
+    if "보고일자_dt" in df.columns:
+        tmp = df.dropna(subset=["보고일자_dt"]).copy()
+        if not tmp.empty:
+            tmp["연월"] = tmp["보고일자_dt"].dt.to_period("M").astype(str)
+            monthly_trend = (
+                tmp["연월"].value_counts().sort_index().tail(24).to_dict()
+            )
+
+    # ── 프롬프트 정의 ──
+    system_prefix = (
+        f"당신은 식품 R&D 전문가입니다. "
+        f"아래는 식품안전나라 품목제조보고 DB에서 조회한 "
+        f"**{food_type}** 카테고리의 최신 데이터 {total}건입니다.\n"
+        f"분석 결과는 한국어로, 식품 R&D 담당자가 바로 활용할 수 있는 "
+        f"실무적 인사이트로 작성하세요.\n\n"
+    )
+
+    prompts = {
+        "트렌드 요약": (
+            system_prefix +
+            f"### 월별 보고 건수 추이 (최근 24개월)\n{monthly_trend}\n\n"
+            f"### 최신 보고 제품 30건\n{recent_prods}\n\n"
+            "위 데이터를 바탕으로 다음을 분석하세요:\n"
+            "1. 최근 {food_type} 시장의 신제품 출시 트렌드 (증가/감소/계절성)\n"
+            "2. 주목할 만한 제품명 패턴 또는 키워드\n"
+            "3. R&D 관점에서 시사점\n"
+            "각 항목은 2~3문장으로 간결하게."
+        ),
+        "제조사 경쟁구도": (
+            system_prefix +
+            f"### 제조사별 제품 수 (상위 10)\n{maker_top10}\n\n"
+            f"전체 제조사 수: {df['제조사'].nunique() if '제조사' in df.columns else 'N/A'}개\n\n"
+            "위 데이터를 바탕으로 다음을 분석하세요:\n"
+            "1. 시장 집중도 (상위 3개사 점유율 추정)\n"
+            "2. 경쟁 구도 특징 (과점/분산/신규 진입 여부)\n"
+            "3. 중소 제조사 진입 여지\n"
+            "각 항목은 2~3문장으로 간결하게."
+        ),
+        "신제품 출시 패턴": (
+            system_prefix +
+            f"### 최신 보고 제품 30건\n{recent_prods}\n\n"
+            f"### 월별 보고 건수\n{monthly_trend}\n\n"
+            "위 데이터를 바탕으로 다음을 분석하세요:\n"
+            "1. 제품명에서 보이는 공통 키워드/트렌드 (기능성, 원료, 포맷 등)\n"
+            "2. 출시 시기 패턴 (특정 월 집중 여부)\n"
+            "3. 예상되는 다음 트렌드 방향\n"
+            "각 항목은 2~3문장으로 간결하게."
+        ),
+        "원료·성분 특징 요약": (
+            system_prefix +
+            f"### 최신 보고 제품 30건 (제품명 중심)\n{recent_prods}\n\n"
+            "제품명만으로 추정 가능한 내용을 분석하세요:\n"
+            "1. 자주 등장하는 원료/기능성 소재 키워드\n"
+            "2. 무가당·저칼로리·기능성 등 헬스 포지셔닝 비중\n"
+            "3. R&D 포뮬레이션 관점에서 주목할 소재\n"
+            "각 항목은 2~3문장으로 간결하게.\n"
+            "※ 실제 성분 데이터가 없으므로 제품명 기반 추정임을 명시하세요."
+        ),
+    }
+
+    results = {}
+    for title, prompt in prompts.items():
+        try:
+            results[title] = _cached_gemini(prompt, api_key, model_name)
+        except Exception as e:
+            results[title] = f"❌ 분석 실패: {e}"
+
+    return results
+
+
+# ══════════════════════════════════════════════════════
 #  DataFrame 변환
 # ══════════════════════════════════════════════════════
 def to_dataframe(rows: list) -> pd.DataFrame:
@@ -396,6 +529,30 @@ with st.sidebar:
     run = st.button("🚀 조회 실행", use_container_width=True, type="primary")
 
     st.markdown("---")
+    st.markdown("### 🤖 Gemini AI 설정")
+
+    # API 키: secrets.toml 우선, 없으면 입력란
+    _default_key = ""
+    try:
+        _default_key = st.secrets.get("GEMINI_API_KEY", "")
+    except Exception:
+        pass
+
+    gemini_key = st.text_input(
+        "Gemini API 키",
+        value=_default_key,
+        type="password",
+        placeholder="AIza...",
+        help="secrets.toml에 GEMINI_API_KEY = '...' 로 설정하면 자동 입력됩니다.",
+    )
+
+    gemini_model = st.selectbox(
+        "모델 선택",
+        ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-preview-04-17"],
+        index=0,
+    )
+
+    st.markdown("---")
     st.markdown("""
 **조회 우선순위**
 1. 🏃 포털 내부 API *(서버필터)*
@@ -449,7 +606,9 @@ if run:
                 c4.metric("제조사 수", f"{df['제조사'].nunique()}개")
 
             st.markdown("---")
-            tab1, tab2, tab3 = st.tabs(["📋 제품 목록", "📊 분석 차트", "📥 원시 데이터"])
+            tab1, tab2, tab3, tab4 = st.tabs(
+                ["📋 제품 목록", "📊 분석 차트", "🤖 AI 분석", "📥 원시 데이터"]
+            )
 
             with tab1:
                 st.markdown(f"### 📋 {food_type} 품목제조보고 ({len(df)}건)")
@@ -532,6 +691,64 @@ if run:
                     st.plotly_chart(fig3, use_container_width=True)
 
             with tab3:
+                st.markdown("### 🤖 Gemini AI 분석")
+
+                if not GENAI_AVAILABLE:
+                    st.error(
+                        "google-generativeai 패키지가 없습니다.\n\n"
+                        "```bash\npip install google-generativeai\n```"
+                    )
+                elif not gemini_key or not gemini_key.strip():
+                    st.warning(
+                        "⚠️ 사이드바에서 **Gemini API 키**를 입력하면 AI 분석이 활성화됩니다.\n\n"
+                        "[Google AI Studio에서 무료 발급](https://aistudio.google.com/app/apikey)"
+                    )
+                else:
+                    st.info(
+                        f"모델: **{gemini_model}** | "
+                        f"분석 대상: **{food_type}** {len(df)}건\n\n"
+                        "4가지 분석을 순차 실행합니다. 첫 실행은 30초 내외 소요됩니다."
+                    )
+                    run_ai = st.button(
+                        "🔍 AI 분석 실행", key="btn_ai", type="primary"
+                    )
+
+                    if run_ai:
+                        with st.spinner("🤖 Gemini가 분석 중입니다…"):
+                            ai_results = run_gemini_analysis(
+                                df, food_type, gemini_key, gemini_model
+                            )
+
+                        if ai_results:
+                            icons = {
+                                "트렌드 요약":        "📈",
+                                "제조사 경쟁구도":    "🏢",
+                                "신제품 출시 패턴":   "🆕",
+                                "원료·성분 특징 요약": "🧪",
+                            }
+                            for title, content in ai_results.items():
+                                with st.expander(
+                                    f"{icons.get(title,'📌')} {title}",
+                                    expanded=True,
+                                ):
+                                    if content.startswith("❌"):
+                                        st.error(content)
+                                    else:
+                                        st.markdown(content)
+
+                            # 전체 결과 다운로드
+                            full_text = "\n\n".join(
+                                f"## {t}\n{c}" for t, c in ai_results.items()
+                            )
+                            st.download_button(
+                                "📥 분석 결과 TXT 다운로드",
+                                full_text.encode("utf-8"),
+                                f"{food_type}_AI분석_{datetime.now().strftime('%Y%m%d')}.txt",
+                                "text/plain",
+                                use_container_width=True,
+                            )
+
+            with tab4:
                 st.markdown("### 📥 원시 데이터 (전체 필드)")
                 st.dataframe(df, use_container_width=True, height=500)
                 csv = df.to_csv(index=False).encode("utf-8-sig")
