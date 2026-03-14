@@ -39,6 +39,7 @@ for _k, _v in {
     "status_msgs":  {},
     "stop_scan":    False,
     "is_scanning":  False,
+    "_raw_fields":  [],
 }.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
@@ -224,7 +225,11 @@ COL_MAP = {
     "PRDLST_DCNM":              "품목유형",
     "BSSH_NM":                  "제조사",
     "PRMS_DT":                  "보고일자",
+    # 원재료명: API 버전에 따라 필드명이 다를 수 있어 모두 매핑
     "RAWMTRL_NM":               "주요원재료",
+    "RAW_MTRL_NM":              "주요원재료",
+    "INGR_NM":                  "주요원재료",
+    "PRPOS":                    "용도",
     "POG_DAYCNT":               "유통기한",
     "PRODUCTION":               "생산종료",
     "INDUTY_CD_NM":             "업종",
@@ -242,9 +247,24 @@ COL_MAP = {
 def to_df(rows: list) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame()
-    df     = pd.DataFrame(rows)
-    rename = {k: v for k, v in COL_MAP.items() if k in df.columns}
-    df     = df.rename(columns=rename)
+    df = pd.DataFrame(rows)
+
+    # 원시 필드명을 session_state에 저장 (디버그용)
+    st.session_state["_raw_fields"] = sorted(df.columns.tolist())
+
+    # COL_MAP 적용 (중복 매핑 시 먼저 발견된 것 우선)
+    rename = {}
+    mapped_targets = set()
+    for k, v in COL_MAP.items():
+        if k in df.columns and v not in mapped_targets:
+            rename[k] = v
+            mapped_targets.add(v)
+    df = df.rename(columns=rename)
+
+    # 원재료 컬럼이 없으면 빈 컬럼 추가 (테이블 표시 일관성)
+    if "주요원재료" not in df.columns:
+        df["주요원재료"] = ""
+
     if "보고일자" in df.columns:
         df["보고일자"]    = df["보고일자"].astype(str)
         df["보고일자_dt"] = pd.to_datetime(df["보고일자"], format="%Y%m%d", errors="coerce")
@@ -714,3 +734,8 @@ else:
             f"{r_label}_품목제조보고_{datetime.now().strftime('%Y%m%d')}.csv",
             "text/csv", use_container_width=True,
         )
+        raw_fields = st.session_state.get("_raw_fields", [])
+        if raw_fields:
+            with st.expander("🔬 API 원시 필드 목록 (디버그)"):
+                st.caption("아래 필드명 중 원재료명에 해당하는 항목을 확인하세요.")
+                st.code(", ".join(raw_fields))
