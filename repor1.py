@@ -531,26 +531,34 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🤖 Gemini AI 설정")
 
-    # API 키: secrets.toml 우선, 없으면 입력란
-    _default_key = ""
+    # API 키: secrets.toml 전용 (GEMINI_API_KEY 또는 GOOGLE_API_KEY 둘 다 허용)
+    gemini_key = ""
     try:
-        _default_key = st.secrets.get("GEMINI_API_KEY", "")
+        gemini_key = (
+            st.secrets.get("GEMINI_API_KEY", "")
+            or st.secrets.get("GOOGLE_API_KEY", "")
+        )
     except Exception:
         pass
 
-    gemini_key = st.text_input(
-        "Gemini API 키",
-        value=_default_key,
-        type="password",
-        placeholder="AIza...",
-        help="secrets.toml에 GEMINI_API_KEY = '...' 로 설정하면 자동 입력됩니다.",
-    )
+    if gemini_key:
+        st.success("✅ API 키 연결됨", icon="🔑")
+    else:
+        st.warning("⚠️ API 키 없음", icon="🔑")
+        st.caption(
+            "`.streamlit/secrets.toml`에 아래 중 하나 추가:\n"
+            "```toml\nGOOGLE_API_KEY = \"AIza...\"\n"
+            "# 또는\nGEMINI_API_KEY = \"AIza...\"\n```"
+        )
 
     gemini_model = st.selectbox(
         "모델 선택",
         ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-preview-04-17"],
         index=0,
     )
+
+    ai_auto = st.toggle("조회 후 자동 분석", value=False,
+                        help="끄면 결과 아래 [AI 분석 실행] 버튼으로 수동 실행")
 
     st.markdown("---")
     st.markdown("""
@@ -606,9 +614,7 @@ if run:
                 c4.metric("제조사 수", f"{df['제조사'].nunique()}개")
 
             st.markdown("---")
-            tab1, tab2, tab3, tab4 = st.tabs(
-                ["📋 제품 목록", "📊 분석 차트", "🤖 AI 분석", "📥 원시 데이터"]
-            )
+            tab1, tab2, tab3 = st.tabs(["📋 제품 목록", "📊 분석 차트", "📥 원시 데이터"])
 
             with tab1:
                 st.markdown(f"### 📋 {food_type} 품목제조보고 ({len(df)}건)")
@@ -691,64 +697,6 @@ if run:
                     st.plotly_chart(fig3, use_container_width=True)
 
             with tab3:
-                st.markdown("### 🤖 Gemini AI 분석")
-
-                if not GENAI_AVAILABLE:
-                    st.error(
-                        "google-generativeai 패키지가 없습니다.\n\n"
-                        "```bash\npip install google-generativeai\n```"
-                    )
-                elif not gemini_key or not gemini_key.strip():
-                    st.warning(
-                        "⚠️ 사이드바에서 **Gemini API 키**를 입력하면 AI 분석이 활성화됩니다.\n\n"
-                        "[Google AI Studio에서 무료 발급](https://aistudio.google.com/app/apikey)"
-                    )
-                else:
-                    st.info(
-                        f"모델: **{gemini_model}** | "
-                        f"분석 대상: **{food_type}** {len(df)}건\n\n"
-                        "4가지 분석을 순차 실행합니다. 첫 실행은 30초 내외 소요됩니다."
-                    )
-                    run_ai = st.button(
-                        "🔍 AI 분석 실행", key="btn_ai", type="primary"
-                    )
-
-                    if run_ai:
-                        with st.spinner("🤖 Gemini가 분석 중입니다…"):
-                            ai_results = run_gemini_analysis(
-                                df, food_type, gemini_key, gemini_model
-                            )
-
-                        if ai_results:
-                            icons = {
-                                "트렌드 요약":        "📈",
-                                "제조사 경쟁구도":    "🏢",
-                                "신제품 출시 패턴":   "🆕",
-                                "원료·성분 특징 요약": "🧪",
-                            }
-                            for title, content in ai_results.items():
-                                with st.expander(
-                                    f"{icons.get(title,'📌')} {title}",
-                                    expanded=True,
-                                ):
-                                    if content.startswith("❌"):
-                                        st.error(content)
-                                    else:
-                                        st.markdown(content)
-
-                            # 전체 결과 다운로드
-                            full_text = "\n\n".join(
-                                f"## {t}\n{c}" for t, c in ai_results.items()
-                            )
-                            st.download_button(
-                                "📥 분석 결과 TXT 다운로드",
-                                full_text.encode("utf-8"),
-                                f"{food_type}_AI분석_{datetime.now().strftime('%Y%m%d')}.txt",
-                                "text/plain",
-                                use_container_width=True,
-                            )
-
-            with tab4:
                 st.markdown("### 📥 원시 데이터 (전체 필드)")
                 st.dataframe(df, use_container_width=True, height=500)
                 csv = df.to_csv(index=False).encode("utf-8-sig")
@@ -757,6 +705,156 @@ if run:
                     f"{food_type}_품목제조보고_{datetime.now().strftime('%Y%m%d')}.csv",
                     "text/csv", use_container_width=True,
                 )
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            #  🤖 Gemini AI 분석 — 탭 바깥, 조회 결과 바로 아래
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            st.markdown("---")
+            st.markdown("## 🤖 Gemini AI 분석")
+
+            if not GENAI_AVAILABLE:
+                st.error(
+                    "google-generativeai 패키지가 없습니다.\n\n"
+                    "터미널에서 아래 명령 실행 후 재시작:\n"
+                    "```bash\npip install google-generativeai\n```"
+                )
+            elif not gemini_key:
+                st.warning(
+                    "⚠️ **Gemini API 키가 없습니다.**\n\n"
+                    "`.streamlit/secrets.toml` 파일에 아래 중 하나를 추가하세요:\n"
+                    "```toml\nGOOGLE_API_KEY = \"AIza...\"\n"
+                    "# 또는\nGEMINI_API_KEY = \"AIza...\"\n```\n\n"
+                    "[🔑 Google AI Studio에서 무료 발급](https://aistudio.google.com/app/apikey)"
+                )
+            else:
+                # 자동 분석 토글이 켜져 있으면 바로 실행, 아니면 버튼 표시
+                do_analysis = ai_auto
+                if not ai_auto:
+                    do_analysis = st.button(
+                        f"🔍 AI 분석 실행 ({food_type} {len(df)}건)",
+                        key="btn_ai_single",
+                        type="primary",
+                        use_container_width=True,
+                    )
+
+                if do_analysis:
+                    icons = {
+                        "트렌드 요약":         "📈",
+                        "제조사 경쟁구도":     "🏢",
+                        "신제품 출시 패턴":    "🆕",
+                        "원료·성분 특징 요약": "🧪",
+                    }
+
+                    # 4개 분석을 하나씩 스트리밍 표시
+                    ai_results = {}
+                    for title in icons:
+                        col_icon, col_title = st.columns([0.05, 0.95])
+                        col_title.markdown(f"#### {icons[title]} {title}")
+                        result_box = st.empty()
+                        result_box.info("분석 중…")
+
+                        try:
+                            # 캐시 함수 호출 (같은 입력이면 즉시 반환)
+                            monthly_trend = {}
+                            if "보고일자_dt" in df.columns:
+                                tmp = df.dropna(subset=["보고일자_dt"]).copy()
+                                if not tmp.empty:
+                                    tmp["연월"] = (
+                                        tmp["보고일자_dt"]
+                                        .dt.to_period("M").astype(str)
+                                    )
+                                    monthly_trend = (
+                                        tmp["연월"].value_counts()
+                                        .sort_index().tail(24).to_dict()
+                                    )
+
+                            maker_top10 = (
+                                df["제조사"].value_counts().head(10).to_dict()
+                                if "제조사" in df.columns else {}
+                            )
+                            recent_prods = []
+                            if "제품명" in df.columns:
+                                cols = [c for c in ["제품명", "제조사", "보고일자"]
+                                        if c in df.columns]
+                                recent_prods = df[cols].head(30).to_dict(orient="records")
+
+                            system_prefix = (
+                                f"당신은 식품 R&D 전문가입니다. "
+                                f"식품안전나라 품목제조보고 DB에서 조회한 "
+                                f"**{food_type}** 카테고리 {len(df)}건 데이터를 분석합니다.\n"
+                                f"결과는 한국어로, 식품 R&D 담당자가 즉시 활용 가능한 "
+                                f"실무적 인사이트로 작성하세요.\n\n"
+                            )
+
+                            prompt_map = {
+                                "트렌드 요약": (
+                                    system_prefix
+                                    + f"### 월별 보고 건수 (최근 24개월)\n{monthly_trend}\n\n"
+                                    + f"### 최신 보고 제품 30건\n{recent_prods}\n\n"
+                                    + "분석 항목:\n"
+                                    + "1. 신제품 출시 트렌드 (증가/감소/계절성)\n"
+                                    + "2. 주목할 제품명 패턴·키워드\n"
+                                    + "3. R&D 관점 시사점\n"
+                                    + "각 항목 2~3문장으로 간결하게."
+                                ),
+                                "제조사 경쟁구도": (
+                                    system_prefix
+                                    + f"### 제조사별 제품 수 (상위 10)\n{maker_top10}\n"
+                                    + f"전체 제조사 수: {df['제조사'].nunique() if '제조사' in df.columns else 'N/A'}개\n\n"
+                                    + "분석 항목:\n"
+                                    + "1. 시장 집중도 (상위 3개사 점유율 추정)\n"
+                                    + "2. 경쟁 구도 특징 (과점/분산/신규 진입)\n"
+                                    + "3. 중소 제조사 진입 여지\n"
+                                    + "각 항목 2~3문장으로 간결하게."
+                                ),
+                                "신제품 출시 패턴": (
+                                    system_prefix
+                                    + f"### 최신 보고 제품 30건\n{recent_prods}\n\n"
+                                    + f"### 월별 보고 건수\n{monthly_trend}\n\n"
+                                    + "분석 항목:\n"
+                                    + "1. 제품명 공통 키워드·트렌드 (기능성, 원료, 포맷 등)\n"
+                                    + "2. 출시 시기 패턴 (특정 월 집중 여부)\n"
+                                    + "3. 예상 다음 트렌드 방향\n"
+                                    + "각 항목 2~3문장으로 간결하게."
+                                ),
+                                "원료·성분 특징 요약": (
+                                    system_prefix
+                                    + f"### 최신 보고 제품 30건 (제품명 중심)\n{recent_prods}\n\n"
+                                    + "분석 항목:\n"
+                                    + "1. 자주 등장하는 원료·기능성 소재 키워드\n"
+                                    + "2. 무가당·저칼로리·기능성 등 헬스 포지셔닝 비중\n"
+                                    + "3. R&D 포뮬레이션 관점 주목 소재\n"
+                                    + "각 항목 2~3문장으로 간결하게.\n"
+                                    + "※ 제품명 기반 추정임을 명시하세요."
+                                ),
+                            }
+
+                            text = _cached_gemini(
+                                prompt_map[title], gemini_key, gemini_model
+                            )
+                            ai_results[title] = text
+                            result_box.markdown(text)
+
+                        except Exception as e:
+                            err_msg = str(e)
+                            ai_results[title] = f"❌ {err_msg}"
+                            result_box.error(f"분석 실패: {err_msg}")
+
+                        st.markdown("")  # 간격
+
+                    # 전체 결과 다운로드
+                    if ai_results:
+                        full_text = "\n\n".join(
+                            f"## {icons.get(t,'')} {t}\n{c}"
+                            for t, c in ai_results.items()
+                        )
+                        st.download_button(
+                            "📥 AI 분석 결과 TXT 다운로드",
+                            full_text.encode("utf-8"),
+                            f"{food_type}_AI분석_{datetime.now().strftime('%Y%m%d')}.txt",
+                            "text/plain",
+                            use_container_width=True,
+                        )
 
     # ━━ 복수 유형 비교 ━━
     else:
