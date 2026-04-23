@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Lucid Mind - R&D 배합 시뮬레이터</title>
+    <style>
+        :root { --primary: #2c3e50; --secondary: #27ae60; --warning: #f39c12; --bg: #f4f7f6; }
+        body { font-family: 'Pretendard', sans-serif; background: var(--bg); margin: 0; padding: 20px; line-height: 1.6; }
+        .container { max-width: 1200px; margin: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: #fff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { color: var(--primary); border-left: 5px solid var(--secondary); padding-left: 15px; margin-bottom: 20px; }
+        
+        /* 배합비 입력 영역 */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        input[type="number"] { width: 70px; padding: 5px; border: 2px solid #ddd; border-radius: 5px; text-align: center; font-weight: bold; }
+        input:focus { border-color: var(--secondary); outline: none; }
+
+        /* 필요조건 대시보드 */
+        .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .spec-item { background: var(--primary); color: white; padding: 15px; border-radius: 10px; text-align: center; }
+        .spec-value { display: block; font-size: 1.8em; font-weight: bold; color: var(--secondary); }
+        .pass-fail { font-size: 0.8em; margin-top: 5px; border-radius: 3px; padding: 2px 5px; }
+
+        /* 실험방법 및 부연설명 */
+        .guide-box { background: #e8f4fd; border-left: 5px solid #3498db; padding: 15px; margin-top: 15px; font-size: 0.9em; }
+        .method-step { margin-bottom: 10px; padding-left: 20px; position: relative; }
+        .method-step::before { content: '•'; position: absolute; left: 0; color: var(--secondary); font-weight: bold; }
+        
+        .marketing-tip { background: #fff3cd; border: 1px dashed #ffc107; padding: 10px; border-radius: 5px; font-size: 0.85em; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<header style="text-align:center; margin-bottom:30px;">
+    <h1 style="color: var(--primary);">Lucid Mind R&D Digital Twin v2.0</h1>
+    <p>실시간 배합 시뮬레이션 및 계량 실험 가이드 시스템</p>
+</header>
+
+<div class="container">
+    <div class="card">
+        <h2>1. 배합비 입력 시뮬레이션</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>원료명</th><th>단위</th><th>입력비(%)</th><th>실제계량(g)</th>
+                </tr>
+            </thead>
+            <tbody id="formula-input-body">
+                </tbody>
+        </table>
+        <p style="text-align: right; font-weight: bold;">총 합계: <span id="total-pct">0.00</span>%</p>
+        
+        <div class="marketing-tip">
+            <strong>💡 김지안 매니저의 기획 의도:</strong> 
+            2026년 트렌드인 '어댑토젠' 배합을 위해 L-테아닌과 GABA 비중을 조정해 보세요. 
+            단, 알룰로스 비중이 너무 낮아지면 바디감이 상실될 수 있습니다.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>2. 필요조건 분석 (Physical Specs)</h2>
+        <div class="spec-grid">
+            <div class="spec-item">목표 당도 (Brix) <span id="res-brix" class="spec-value">0.0</span><span id="brix-status" class="pass-fail"></span></div>
+            <div class="spec-item">예측 산도 (pH) <span id="res-ph" class="spec-value">0.0</span><span id="ph-status" class="pass-fail"></span></div>
+            <div class="spec-item">제조 원가 (원/kg) <span id="res-cost" class="spec-value">0</span><span class="pass-fail">마진율 75% 타겟</span></div>
+            <div class="spec-item">테아닌 함량 (mg) <span id="res-func" class="spec-value">0</span><span class="pass-fail">120ml 병당 기준</span></div>
+        </div>
+
+        <h2 style="margin-top:25px;">3. 계량 실험방법 및 중요관리</h2>
+        <div class="guide-box">
+            <div class="method-step"><strong>도구 준비:</strong> 0.01g 정밀 저울을 수평계에 맞춰 세팅하고 영점 조절을 실시합니다.</div>
+            <div class="method-step"><strong>순차 계량:</strong> 액상 원료(정제수, 알룰로스)를 먼저 평량한 후, 기능성 분말(테아닌, GABA)을 소량의 정제수에 미리 녹여(Pre-mix) 투입합니다.</div>
+            <div class="method-step"><strong>균질화:</strong> 600rpm 이상의 마그네틱 스터러 또는 호모게나이저를 사용하여 5분간 교반합니다.</div>
+            <div class="method-step"><strong>중요관리방안(CCP):</strong> 살균 온도 95℃ 도달 시 30초를 유지하며, 이 범위를 벗어날 경우 기능성 성분 파괴 리스크가 발생합니다.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ingredients = [
+        { name: "라임농축액(45Bx)", ratio: 2.0, brix: 45, acid: 6.5, price: 5500 },
+        { name: "L-테아닌(99%)", ratio: 0.25, brix: 0, acid: 0, price: 45000 },
+        { name: "가바(GABA)", ratio: 0.1, brix: 0, acid: 0, price: 35000 },
+        { name: "알룰로스(액상)", ratio: 8.0, brix: 0, acid: 0, price: 2500 },
+        { name: "구연산(무수)", ratio: 0.15, brix: 0, acid: 100, price: 3000 },
+        { name: "아스코르빈산", ratio: 0.05, brix: 0, acid: 0, price: 12000 },
+        { name: "천연라임향", ratio: 0.1, brix: 0, acid: 0, price: 30000 },
+        { name: "정제수", ratio: 89.35, brix: 0, acid: 0, price: 0.5 }
+    ];
+
+    function update() {
+        let tRatio = 0, tBrix = 0, tAcid = 0, tCost = 0, theanine = 0;
+        const inputs = document.querySelectorAll(".ratio-val");
+        const grams = document.querySelectorAll(".gram-val");
+
+        inputs.forEach((input, i) => {
+            const val = parseFloat(input.value) || 0;
+            tRatio += val;
+            grams[i].innerText = (val * 10).toFixed(2) + "g"; // 1kg 기준 g단위 표시
+
+            tBrix += (val * ingredients[i].brix) / 100;
+            tAcid += (val * ingredients[i].acid) / 100;
+            tCost += (val * ingredients[i].price) / 100;
+            if(ingredients[i].name.includes("테아닌")) theanine = val;
+        });
+
+        // 결과 반영
+        document.getElementById("total-pct").innerText = tRatio.toFixed(2);
+        document.getElementById("res-brix").innerText = tBrix.toFixed(2);
+        document.getElementById("res-cost").innerText = Math.round(tCost).toLocaleString();
+        document.getElementById("res-func").innerText = Math.round(theanine * 1000 * 0.12);
+
+        // pH 예측 및 조건 체크
+        const predPH = tAcid > 0 ? (4.2 - Math.log10(tAcid * 12)).toFixed(1) : "7.0";
+        document.getElementById("res-ph").innerText = predPH;
+
+        // 필요조건 Pass/Fail 체크
+        const bStatus = document.getElementById("brix-status");
+        if(tBrix >= 8 && tBrix <= 13) { bStatus.innerText = "조건충족(Pass)"; bStatus.style.background = "#27ae60"; }
+        else { bStatus.innerText = "범위이탈(Check)"; bStatus.style.background = "#e74c3c"; }
+
+        const pStatus = document.getElementById("ph-status");
+        if(predPH >= 3.0 && predPH <= 4.5) { pStatus.innerText = "조건충족(Pass)"; pStatus.style.background = "#27ae60"; }
+        else { pStatus.innerText = "범위이탈(Check)"; pStatus.style.background = "#e74c3c"; }
+    }
+
+    // 초기 테이블 렌더링
+    const body = document.getElementById("formula-input-body");
+    ingredients.forEach((ing, i) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td style="text-align:left">${ing.name}</td>
+            <td>%</td>
+            <td><input type="number" step="0.01" class="ratio-val" value="${ing.ratio}" oninput="update()"></td>
+            <td class="gram-val">0.00g</td>
+        `;
+        body.appendChild(tr);
+    });
+
+    update();
+</script>
+
+</body>
+</html>
