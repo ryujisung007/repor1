@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 식품정보 시스템 구조도</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #080F1E;
+    --bg2: #0D1829;
+    --card: #111E33;
+    --border: #1A3050;
+    --accent1: #00C8D4;
+    --accent2: #B08FFF;
+    --accent3: #FF6B9D;
+    --text: #E8F0FE;
+    --muted: #5A7A9A;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,200,212,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,212,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .wrapper { max-width: 1200px; margin: 0 auto; position: relative; }
+
+  .header { text-align: center; margin-bottom: 48px; }
+  .header-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(0,200,212,0.15), rgba(176,143,255,0.15));
+    border: 1px solid rgba(0,200,212,0.3);
+    border-radius: 100px;
+    padding: 6px 20px;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent1);
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 2rem; font-weight: 900;
+    background: linear-gradient(90deg, #00C8D4, #B08FFF);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header p { color: var(--muted); font-size: 0.9rem; }
+
+  .file-structure {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px 28px; margin-bottom: 40px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+  }
+  .file-structure h2 {
+    font-family: 'Noto Sans KR', sans-serif; font-size: 0.75rem;
+    color: var(--muted); letter-spacing: 0.15em; margin-bottom: 16px; font-weight: 400;
+  }
+  .file-line { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: var(--text); }
+  .file-line .folder { color: var(--accent2); }
+  .file-line .file { color: #7EC8A0; }
+  .file-line .comment { color: var(--muted); margin-left: 12px; font-size: 0.75rem; }
+  .indent1 { padding-left: 20px; }
+  .indent2 { padding-left: 40px; }
+
+  .section-title {
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.18em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .home-card {
+    background: linear-gradient(135deg, #0D1829, #142036);
+    border: 1px solid rgba(0,200,212,0.4); border-radius: 14px;
+    padding: 20px 28px; margin-bottom: 32px;
+    display: flex; align-items: center; gap: 20px;
+    position: relative; overflow: hidden;
+  }
+  .home-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #00C8D4, #B08FFF);
+  }
+  .home-icon { font-size: 2.2rem; }
+  .home-info h3 { font-size: 1.05rem; font-weight: 700; color: var(--accent1); }
+  .home-info p { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+  .home-features { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  .feature-chip {
+    background: rgba(0,200,212,0.1); border: 1px solid rgba(0,200,212,0.2);
+    border-radius: 100px; padding: 4px 12px; font-size: 0.72rem; color: var(--accent1);
+  }
+
+  .pages-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+
+  .page-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .page-card:hover { transform: translateY(-3px); border-color: rgba(0,200,212,0.3); }
+
+  .page-header {
+    padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; position: relative;
+  }
+  .page-header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .page-A .page-header::before { background: linear-gradient(90deg, #00C8D4, #00E8A0); }
+  .page-B .page-header::before { background: linear-gradient(90deg, #B08FFF, #FF6B9D); }
+  .page-C .page-header::before { background: linear-gradient(90deg, #FFB347, #FF6B9D); }
+  .page-D .page-header::before { background: linear-gradient(90deg, #00E8A0, #00C8D4); }
+  .page-E .page-header::before { background: linear-gradient(90deg, #FF6B9D, #B08FFF); }
+  .page-F .page-header::before { background: linear-gradient(90deg, #FFD700, #FFB347); }
+
+  .page-emoji { font-size: 1.4rem; }
+  .page-name { font-size: 0.88rem; font-weight: 700; }
+  .page-sub { font-size: 0.68rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+  .tabs-container { padding: 14px 18px; }
+  .tab-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 7px 0; border-bottom: 1px solid rgba(30,58,90,0.5); font-size: 0.78rem;
+  }
+  .tab-item:last-child { border-bottom: none; }
+  .tab-num { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); min-width: 28px; padding-top: 1px; }
+  .tab-name { color: var(--text); flex: 1; }
+  .tab-desc { color: var(--muted); font-size: 0.7rem; margin-top: 2px; }
+
+  .ai-tabs {
+    margin: 8px 18px 14px;
+    background: rgba(176,143,255,0.06);
+    border: 1px solid rgba(176,143,255,0.2);
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .ai-tabs-title {
+    font-size: 0.68rem; color: var(--accent2); font-weight: 700;
+    letter-spacing: 0.08em; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .common-badge {
+    background: rgba(176,143,255,0.12); border: 1px solid rgba(176,143,255,0.25);
+    border-radius: 100px; padding: 2px 8px; font-size: 0.62rem; color: var(--accent2);
+  }
+  .ai-tab-row {
+    display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.75rem;
+    border-bottom: 1px solid rgba(176,143,255,0.1);
+  }
+  .ai-tab-row:last-child { border-bottom: none; }
+  .ai-tab-icon { font-size: 0.9rem; }
+  .ai-tab-text { color: var(--text); flex: 1; }
+  .ai-tab-desc { color: var(--muted); font-size: 0.68rem; }
+
+  .page-G {
+    background: linear-gradient(135deg, #0D1829, #142036);
+    border: 1px solid rgba(255,215,0,0.25);
+    border-radius: 14px; overflow: hidden; margin-bottom: 32px;
+  }
+  .page-G .page-header::before { background: linear-gradient(90deg, #FFD700, #FF6B9D, #B08FFF); }
+  .g-tabs-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding: 16px 18px; }
+  .g-tab { padding: 12px; border-right: 1px solid var(--border); text-align: center; }
+  .g-tab:last-child { border-right: none; }
+  .g-tab-icon { font-size: 1.4rem; margin-bottom: 6px; }
+  .g-tab-name { font-size: 0.78rem; font-weight: 600; color: var(--text); }
+  .g-tab-desc { font-size: 0.68rem; color: var(--muted); margin-top: 4px; }
+
+  .legend { display: flex; gap: 24px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  @media (max-width: 900px) {
+    .pages-grid { grid-template-columns: repeat(2, 1fr); }
+    .g-tabs-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .pages-grid { grid-template-columns: 1fr; }
+    .home-features { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="header">
+    <div class="header-badge">SYSTEM ARCHITECTURE v1.1</div>
+    <h1>🍱 AI 식품정보 시스템</h1>
+    <p>Streamlit Multipage App · pages/ 폴더 구조 · 식품개발 프로세스 A → G</p>
+  </div>
+
+  <!-- 파일 구조 -->
+  <div class="section-title">📁 파일 구조 (Streamlit Multipage)</div>
+  <div class="file-structure">
+    <h2>PROJECT STRUCTURE</h2>
+    <div class="file-line"><span class="folder">📁</span> food_app/</div>
+    <div class="file-line indent1"><span class="file">🐍</span> app.py <span class="comment">← 진입점 · 홈 대시보드</span></div>
+    <div class="file-line indent1"><span class="folder">📁</span> pages/</div>
+    <div class="file-line indent2"><span class="file">🐍</span> 1_🧪_A_시장조사기획.py</div>
+    <div class="file-line indent2"><span class="file">🐍</span> 2_🔬_B_원료배합설계.py</div>
+    <div class="file-line indent2"><span class="file">🐍</span> 3_🏭_C_제조공정설계.py</div>
+    <div class="file-line indent2"><span class="file">🐍</span> 4_🧫_D_품질안전검토.py</div>
+    <div class="file-line indent2"><span class="file">🐍</span> 5_📦_E_포장표시사항.py</div>
+    <div class="file-line indent2"><span class="file">🐍</span> 6_💰_F_원가출시계획.py</div>
+    <div class="file-line indent2"><span class="file">🐍</span> 7_📋_G_보고서서류관리.py</div>
+    <div class="file-line indent1"><span class="folder">📁</span> parts/ <span class="comment">← 각 페이지 세부 로직 모듈</span></div>
+    <div class="file-line indent1"><span class="folder">📁</span> utils/</div>
+    <div class="file-line indent2"><span class="file">🐍</span> styles.py <span class="comment">← 공통 CSS</span></div>
+    <div class="file-line indent2"><span class="file">🐍</span> ai_helper.py <span class="comment">← AI 분석 공통 함수</span></div>
+    <div class="file-line indent2"><span class="file">🐍</span> uploader.py <span class="comment">← 자료 업로드 공통 컴포넌트</span></div>
+  </div>
+
+  <!-- 홈 -->
+  <div class="section-title">🏠 메인 진입점</div>
+  <div class="home-card">
+    <div class="home-icon">🏠</div>
+    <div class="home-info">
+      <h3>app.py — 홈 대시보드</h3>
+      <p>전체 개발 진행률 · 프로젝트 기본 정보 입력 · 단계별 완료 상태 표시</p>
+    </div>
+    <div class="home-features">
+      <div class="feature-chip">진행률 표시</div>
+      <div class="feature-chip">프로젝트 설정</div>
+      <div class="feature-chip">단계 네비게이션</div>
+    </div>
+  </div>
+
+  <!-- A~F -->
+  <div class="section-title">📄 pages/ — A~F 개발 프로세스 페이지</div>
+  <div class="pages-grid">
+
+    <div class="page-card page-A">
+      <div class="page-header">
+        <span class="page-emoji">🧪</span>
+        <div><div class="page-name">A | 시장조사 & 기획</div><div class="page-sub">1_A_시장조사기획.py</div></div>
+      </div>
+      <div class="tabs-container">
+        <div class="tab-item"><span class="tab-num">A-1</span><div><div class="tab-name">트렌드 분석</div><div class="tab-desc">식품 트렌드 키워드·소비자 인사이트</div></div></div>
+        <div class="tab-item"><span class="tab-num">A-2</span><div><div class="tab-name">경쟁제품 조사</div><div class="tab-desc">유사제품 분석·포지셔닝 맵</div></div></div>
+        <div class="tab-item"><span class="tab-num">A-3</span><div><div class="tab-name">컨셉 기획</div><div class="tab-desc">제품 컨셉·타겟 소비자 정의</div></div></div>
+        <div class="tab-item"><span class="tab-num">A-4</span><div><div class="tab-name">기획서 작성</div><div class="tab-desc">제품개발 기획서 폼 입력</div></div></div>
+      </div>
+      <div class="ai-tabs">
+        <div class="ai-tabs-title">🤖 AI 학습 탭 <span class="common-badge">A~F 공통</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">📁</span><span class="ai-tab-text">자료 업로드</span><span class="ai-tab-desc">시장보고서·논문 PDF·PPT</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">✨</span><span class="ai-tab-text">AI 분석 적용</span><span class="ai-tab-desc">트렌드 키워드·컨셉 자동 추출</span></div>
+      </div>
+    </div>
+
+    <div class="page-card page-B">
+      <div class="page-header">
+        <span class="page-emoji">🔬</span>
+        <div><div class="page-name">B | 원료 & 배합 설계</div><div class="page-sub">2_B_원료배합설계.py</div></div>
+      </div>
+      <div class="tabs-container">
+        <div class="tab-item"><span class="tab-num">B-1</span><div><div class="tab-name">원료 DB 검색</div><div class="tab-desc">원료 성분·기능·규격 검색</div></div></div>
+        <div class="tab-item"><span class="tab-num">B-2</span><div><div class="tab-name">배합비 설계</div><div class="tab-desc">원료 배합 비율 계산기</div></div></div>
+        <div class="tab-item"><span class="tab-num">B-3</span><div><div class="tab-name">영양성분 계산</div><div class="tab-desc">배합 기반 영양성분 자동 산출</div></div></div>
+        <div class="tab-item"><span class="tab-num">B-4</span><div><div class="tab-name">원료 규격서</div><div class="tab-desc">원료 규격서 폼 작성</div></div></div>
+      </div>
+      <div class="ai-tabs">
+        <div class="ai-tabs-title">🤖 AI 학습 탭 <span class="common-badge">A~F 공통</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">📁</span><span class="ai-tab-text">자료 업로드</span><span class="ai-tab-desc">원료 스펙시트·성분표 Excel</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">✨</span><span class="ai-tab-text">AI 분석 적용</span><span class="ai-tab-desc">배합비 추천·영양성분 자동계산</span></div>
+      </div>
+    </div>
+
+    <div class="page-card page-C">
+      <div class="page-header">
+        <span class="page-emoji">🏭</span>
+        <div><div class="page-name">C | 제조공정 설계</div><div class="page-sub">3_C_제조공정설계.py</div></div>
+      </div>
+      <div class="tabs-container">
+        <div class="tab-item"><span class="tab-num">C-1</span><div><div class="tab-name">공정 흐름도</div><div class="tab-desc">제조공정 단계 설계 Flow Chart</div></div></div>
+        <div class="tab-item"><span class="tab-num">C-2</span><div><div class="tab-name">공정 조건 설정</div><div class="tab-desc">온도·시간·압력 파라미터 입력</div></div></div>
+        <div class="tab-item"><span class="tab-num">C-3</span><div><div class="tab-name">HACCP 포인트</div><div class="tab-desc">CCP 식별·관리기준 학습</div></div></div>
+        <div class="tab-item"><span class="tab-num">C-4</span><div><div class="tab-name">공정 지시서</div><div class="tab-desc">제조공정 지시서 폼 작성</div></div></div>
+      </div>
+      <div class="ai-tabs">
+        <div class="ai-tabs-title">🤖 AI 학습 탭 <span class="common-badge">A~F 공통</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">📁</span><span class="ai-tab-text">자료 업로드</span><span class="ai-tab-desc">공정 문서·HACCP 자료</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">✨</span><span class="ai-tab-text">AI 분석 적용</span><span class="ai-tab-desc">공정 흐름도 생성·CCP 식별</span></div>
+      </div>
+    </div>
+
+    <div class="page-card page-D">
+      <div class="page-header">
+        <span class="page-emoji">🧫</span>
+        <div><div class="page-name">D | 품질 & 안전성</div><div class="page-sub">4_D_품질안전검토.py</div></div>
+      </div>
+      <div class="tabs-container">
+        <div class="tab-item"><span class="tab-num">D-1</span><div><div class="tab-name">법적 기준 확인</div><div class="tab-desc">식품공전 기준 규격 조회</div></div></div>
+        <div class="tab-item"><span class="tab-num">D-2</span><div><div class="tab-name">미생물 기준</div><div class="tab-desc">미생물 허용기준 학습</div></div></div>
+        <div class="tab-item"><span class="tab-num">D-3</span><div><div class="tab-name">유통기한 설계</div><div class="tab-desc">유통기한 설정 근거 작성</div></div></div>
+        <div class="tab-item"><span class="tab-num">D-4</span><div><div class="tab-name">품질 규격서</div><div class="tab-desc">완제품 규격서 폼 작성</div></div></div>
+      </div>
+      <div class="ai-tabs">
+        <div class="ai-tabs-title">🤖 AI 학습 탭 <span class="common-badge">A~F 공통</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">📁</span><span class="ai-tab-text">자료 업로드</span><span class="ai-tab-desc">시험성적서·규격 문서</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">✨</span><span class="ai-tab-text">AI 분석 적용</span><span class="ai-tab-desc">법적기준 대비 자동 검토</span></div>
+      </div>
+    </div>
+
+    <div class="page-card page-E">
+      <div class="page-header">
+        <span class="page-emoji">📦</span>
+        <div><div class="page-name">E | 포장 & 표시사항</div><div class="page-sub">5_E_포장표시사항.py</div></div>
+      </div>
+      <div class="tabs-container">
+        <div class="tab-item"><span class="tab-num">E-1</span><div><div class="tab-name">포장재 선정</div><div class="tab-desc">포장재 종류·특성 학습</div></div></div>
+        <div class="tab-item"><span class="tab-num">E-2</span><div><div class="tab-name">영양성분표 작성</div><div class="tab-desc">영양성분표 자동 생성</div></div></div>
+        <div class="tab-item"><span class="tab-num">E-3</span><div><div class="tab-name">표시사항 설계</div><div class="tab-desc">식품 라벨 법적 기준 확인</div></div></div>
+        <div class="tab-item"><span class="tab-num">E-4</span><div><div class="tab-name">포장 사양서</div><div class="tab-desc">포장 사양서 폼 작성</div></div></div>
+      </div>
+      <div class="ai-tabs">
+        <div class="ai-tabs-title">🤖 AI 학습 탭 <span class="common-badge">A~F 공통</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">📁</span><span class="ai-tab-text">자료 업로드</span><span class="ai-tab-desc">기존 라벨·포장 이미지</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">✨</span><span class="ai-tab-text">AI 분석 적용</span><span class="ai-tab-desc">표시사항 오류검토·자동 추출</span></div>
+      </div>
+    </div>
+
+    <div class="page-card page-F">
+      <div class="page-header">
+        <span class="page-emoji">💰</span>
+        <div><div class="page-name">F | 원가 & 출시 계획</div><div class="page-sub">6_F_원가출시계획.py</div></div>
+      </div>
+      <div class="tabs-container">
+        <div class="tab-item"><span class="tab-num">F-1</span><div><div class="tab-name">원가 계산</div><div class="tab-desc">원료비·제조비·물류비 계산기</div></div></div>
+        <div class="tab-item"><span class="tab-num">F-2</span><div><div class="tab-name">가격 전략</div><div class="tab-desc">마진율·판매가 시뮬레이션</div></div></div>
+        <div class="tab-item"><span class="tab-num">F-3</span><div><div class="tab-name">출시 로드맵</div><div class="tab-desc">출시 일정 계획표 작성</div></div></div>
+        <div class="tab-item"><span class="tab-num">F-4</span><div><div class="tab-name">사업성 검토</div><div class="tab-desc">BEP 분석·손익 시뮬레이션</div></div></div>
+      </div>
+      <div class="ai-tabs">
+        <div class="ai-tabs-title">🤖 AI 학습 탭 <span class="common-badge">A~F 공통</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">📁</span><span class="ai-tab-text">자료 업로드</span><span class="ai-tab-desc">견적서·단가표·원가 자료</span></div>
+        <div class="ai-tab-row"><span class="ai-tab-icon">✨</span><span class="ai-tab-text">AI 분석 적용</span><span class="ai-tab-desc">원가 자동계산·BEP 시뮬레이션</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- G -->
+  <div class="section-title">📋 최종 단계 — G | 보고서 & 서류 관리</div>
+  <div class="page-G">
+    <div class="page-header" style="padding: 16px 18px;">
+      <span class="page-emoji">📋</span>
+      <div>
+        <div class="page-name">G | 최종 보고서 & 서류 관리</div>
+        <div class="page-sub">7_G_보고서서류관리.py · A~F 전 단계 데이터 취합 · 동일 서류 입력 폼</div>
+      </div>
+    </div>
+    <div class="g-tabs-grid">
+      <div class="g-tab">
+        <div class="g-tab-icon">📄</div>
+        <div class="g-tab-name">G-1 개발 보고서</div>
+        <div class="g-tab-desc">A~F 전 단계 내용 자동 취합·출력</div>
+      </div>
+      <div class="g-tab">
+        <div class="g-tab-icon">📁</div>
+        <div class="g-tab-name">G-2 서류 업로드</div>
+        <div class="g-tab-desc">각 단계별 최종 서류 업로드 (동일 폼)</div>
+      </div>
+      <div class="g-tab">
+        <div class="g-tab-icon">✅</div>
+        <div class="g-tab-name">G-3 체크리스트</div>
+        <div class="g-tab-desc">출시 전 최종 체크리스트 확인</div>
+      </div>
+      <div class="g-tab">
+        <div class="g-tab-icon">📥</div>
+        <div class="g-tab-name">G-4 PDF 출력</div>
+        <div class="g-tab-desc">전체 보고서 PDF 다운로드</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 범례 -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#00C8D4"></div>업무 탭 (파트별 상이)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#B08FFF"></div>AI 학습 탭 (A~F 공통 · 자료업로드 + AI분석)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FFD700"></div>G 최종 보고서 (공통 서류 폼)</div>
+  </div>
+
+</div>
+</body>
+</html>
