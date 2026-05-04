@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>식품공전 음료류 통합 관리 시스템</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; }
+        body { font-family: 'Pretendard', sans-serif; background: #f4f7f6; color: var(--primary); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h1 { border-left: 6px solid var(--accent); padding-left: 15px; font-size: 26px; margin-bottom: 5px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .card { border: 1px solid #eee; padding: 20px; border-radius: 8px; background: #fafafa; }
+        .card h2 { font-size: 18px; border-bottom: 2px solid var(--accent); padding-bottom: 10px; margin-top: 0; }
+        .input-group { margin-bottom: 12px; }
+        label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .result-box { background: var(--primary); color: white; padding: 15px; border-radius: 8px; text-align: center; margin-top: 15px; }
+        .result-val { font-size: 24px; font-weight: bold; color: #f1c40f; display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 13px; }
+        th { background: #eee; }
+        .btn { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .type-info { font-size: 13px; color: #555; background: #eef2f3; padding: 12px; border-radius: 5px; margin-top: 10px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🤖 음료류 R&D 통합 관리 시스템 (식품공전 전 유형 반영)</h1>
+    <p style="font-size: 14px; color: #666; margin-bottom: 20px;">[source: 1] 9. 음료류(다류, 커피, 과·채류, 탄산, 두유, 발효, 인삼·홍삼, 기타음료) 규격 통합</p>
+
+    <div class="grid">
+        <!-- 1. 유통기한 산출 엔진 -->
+        <div class="card">
+            <h2>🌡️ 가속실험 유통기한 산출</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="input-group"><label>T1 온도(°C)</label><input type="number" id="t1_temp" value="35"></div>
+                <div class="input-group"><label>T1 도달일</label><input type="number" id="t1_days" value="6"></div>
+                <div class="input-group"><label>T2 온도(°C)</label><input type="number" id="t2_temp" value="45"></div>
+                <div class="input-group"><label>T2 도달일</label><input type="number" id="t2_days" value="4"></div>
+            </div>
+            <div class="input-group"><label>안전계수 (권장 0.8)</label><input type="number" id="safety_factor" value="0.8" step="0.1"></div>
+            <button class="btn" onclick="updateShelfLife()">유통기한 계산</button>
+            <div class="result-box">
+                25°C 예측 수명: <span class="result-val" id="raw_res">0.0 개월/일</span>
+                최종 권장 기한: <span class="result-val" id="final_res" style="color: #2ecc71;">0.0 개월/일</span>
+            </div>
+        </div>
+
+        <!-- 2. 식품유형 선택 (식품공전 9-1 ~ 9-8 전체 반영) -->
+        <div class="card">
+            <h2>⚖️ 식품공전 유형별 규격 대조</h2>
+            <div class="input-group">
+                <label>음료류 세부 유형 선택</label>
+                <select id="typeSelect" onchange="updateSpecTable()">
+                    <option value="">-- 유형 선택 --</option>
+                    <optgroup label="9-1 다류">
+                        <option value="tea_liquid">액상차</option>
+                        <option value="tea_solid">고형차</option>
+                    </optgroup>
+                    <optgroup label="9-2 커피">
+                        <option value="coffee_liquid">액상커피</option>
+                    </optgroup>
+                    <optgroup label="9-3 과일·채소류음료">
+                        <option value="fruit_juice">과·채주스 (95%↑)</option>
+                        <option value="fruit_drink">과·채음료 (10%↑)</option>
+                    </optgroup>
+                    <optgroup label="9-4 탄산음료류">
+                        <option value="carbonated_drink">탄산음료</option>
+                        <option value="carbonated_water">탄산수</option>
+                    </optgroup>
+                    <optgroup label="9-5 두유류">
+                        <option value="soymilk_base">원액두유 (고형분 7%↑)</option>
+                        <option value="soymilk_processed">가공두유 (고형분 1.4%↑)</option>
+                    </optgroup>
+                    <optgroup label="9-6 발효음료류">
+                        <option value="fermented_drink">유산균/효모음료</option>
+                    </optgroup>
+                    <optgroup label="9-7 인삼·홍삼음료">
+                        <option value="ginseng_drink">인삼·홍삼음료</option>
+                    </optgroup>
+                    <optgroup label="9-8 기타음료">
+                        <option value="mixed_drink">혼합음료</option>
+                        <option value="drink_base">음료베이스</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div id="type_info" class="type-info">유형을 선택하면 상세 정의와 법적 규격이 로드됩니다.</div>
+        </div>
+    </div>
+
+    <!-- 3. 분석 기록 테이블 -->
+    <div class="card">
+        <h2>📊 규격 대조 및 분석 기록 (Analysis Table)</h2>
+        <table id="analysisTable">
+            <thead>
+                <tr>
+                    <th>분석 항목</th>
+                    <th>법적 규격</th>
+                    <th>분석값</th>
+                    <th>단위</th>
+                    <th>판정</th>
+                    <th>비고</th>
+                </tr>
+            </thead>
+            <tbody id="analysis_body"></tbody>
+        </table>
+        <button class="btn" style="background: #34495e; margin-top: 20px;" onclick="window.print()">📑 분석 리포트 출력</button>
+    </div>
+</div>
+
+<script>
+    const specDB = {
+        "tea_liquid": { info: "식물성 원료 주원료 추출물", specs: [{i:"세균수", l:"n=5,c=1,m=100,M=1000"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}, {i:"납", l:"0.3 이하"}, {i:"타르색소", l:"불검출"}] },
+        "coffee_liquid": { info: "볶은커피 추출물 또는 조제커피 (액상)", specs: [{i:"세균수", l:"n=5,c=1,m=100,M=1000"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}, {i:"납", l:"2.0 이하"}] },
+        "fruit_juice": { info: "과·채즙 95% 이상", specs: [{i:"세균수", l:"n=5,c=1,m=100,M=1000"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}, {i:"납", l:"0.05 이하"}, {i:"카드뮴", l:"0.1 이하"}] },
+        "fruit_drink": { info: "과·채즙 10% 이상", specs: [{i:"세균수", l:"n=5,c=1,m=100,M=1000"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}, {i:"납", l:"0.05 이하"}, {i:"안식향산", l:"0.6 이하"}] },
+        "carbonated_drink": { info: "식품첨가물+탄산가스 혼합", specs: [{i:"세균수", l:"n=5,c=1,m=100,M=1000"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}, {i:"가스압", l:"0.5 이상"}, {i:"보존료", l:"0.6 이하"}] },
+        "soymilk_base": { info: "두유액(두류고형분 7% 이상)", specs: [{i:"세균수", l:"n=5,c=2,m=10000,M=50000"}, {i:"대장균군", l:"n=5,c=2,m=0,M=10"}] },
+        "fermented_drink": { info: "유가공품/식물성원료 미생물 발효[cite: 1]", specs: [{i:"세균수(살균)", l:"n=5,c=1,m=100,M=1000"}, {i:"유산균/효모수", l:"10^6/mL 이상"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}] },
+        "ginseng_drink": { info: "가용성 인삼/홍삼성분 0.15% 이상[cite: 1]", specs: [{i:"세균수", l:"n=5,c=1,m=100,M=1000"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}, {i:"타르색소", l:"불검출"}, {i:"보존료", l:"0.6 이하"}] },
+        "mixed_drink": { info: "먹는물/동식물원료+첨가물 혼합[cite: 1]", specs: [{i:"세균수", l:"n=5,c=1,m=100,M=1000"}, {i:"대장균군", l:"n=5,c=1,m=0,M=10"}, {i:"납", l:"0.3 이하"}, {i:"카드뮴", l:"0.1 이하"}] }
+    };
+
+    function updateSpecTable() {
+        const type = document.getElementById('typeSelect').value;
+        const body = document.getElementById('analysis_body');
+        const info = document.getElementById('type_info');
+        body.innerHTML = "";
+        if(!type) return;
+        info.innerText = specDB[type].info;
+        specDB[type].specs.forEach(s => {
+            body.innerHTML += `<tr><td><strong>${s.i}</strong></td><td>${s.l}</td><td><input type="text"></td><td>-</td><td><select><option>적합</option><option>부적합</option></select></td><td><input type="text"></td></tr>`;
+        });
+    }
+
+    function updateShelfLife() {
+        const t1T = parseFloat(document.getElementById('t1_temp').value), t1D = parseFloat(document.getElementById('t1_days').value);
+        const t2T = parseFloat(document.getElementById('t2_temp').value), t2D = parseFloat(document.getElementById('t2_days').value);
+        const sf = parseFloat(document.getElementById('safety_factor').value);
+        const q10 = Math.pow((t1D / t2D), (10 / (t2T - t1T)));
+        const raw25 = t1D * Math.pow(q10, ((t1T - 25) / 10));
+        document.getElementById('raw_res').innerText = raw25.toFixed(1) + " 개월/일";
+        document.getElementById('final_res').innerText = (raw25 * sf).toFixed(1) + " 개월/일";
+    }
+</script>
+</body>
+</html>
