@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 식품정보 시스템 ver 1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #F7F3EE;
+  --sidebar:  #FFFFFF;
+  --navy:     #2C3E6B;
+  --teal:     #4ABFBF;
+  --teal2:    #79D7D7;
+  --rose:     #F28B82;
+  --amber:    #FFB347;
+  --mint:     #7DD1A8;
+  --lavender: #A89ED6;
+  --text:     #2D3748;
+  --muted:    #8A9AB5;
+  --card:     #FFFFFF;
+  --border:   #E2EAF4;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── 사이드바 ── */
+.sidebar {
+  width: 240px; min-width: 240px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  box-shadow: 2px 0 12px rgba(44,62,107,0.07);
+}
+.logo {
+  padding: 22px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-title {
+  font-size: 1rem; font-weight: 900;
+  color: var(--navy); line-height: 1.35;
+}
+.logo-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem; color: var(--muted); margin-top: 4px;
+}
+.nav { padding: 10px 0; }
+.nav-label {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 2px;
+  color: var(--muted); padding: 8px 18px 4px; text-transform: uppercase;
+}
+.part-item { cursor: pointer; border-left: 3px solid transparent; transition: all .18s; }
+.part-item:hover { background: #F0F6FF; }
+.part-item.active { border-left-color: var(--teal); background: #EEF9F9; }
+.part-header { display:flex; align-items:center; gap:9px; padding: 10px 18px; }
+.part-badge {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; font-weight: 600;
+  background: #EEF9F9; color: var(--teal);
+  border: 1px solid #C0E8E8; border-radius: 4px;
+  padding: 1px 6px; min-width: 22px; text-align: center;
+}
+.part-item.active .part-badge { background: var(--teal); color: #fff; border-color: var(--teal); }
+.part-name { font-size: 0.82rem; font-weight: 500; color: var(--text); }
+.part-item.active .part-name { font-weight: 700; color: var(--navy); }
+.sub-menu { display:none; padding: 2px 0 8px 46px; }
+.part-item.active .sub-menu { display:block; }
+.sub-item {
+  font-size: 0.75rem; color: var(--muted);
+  padding: 5px 10px 5px 0; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+  border-radius: 4px; transition: color .15s;
+}
+.sub-item::before { content:'›'; color: var(--teal); font-size: 1rem; }
+.sub-item:hover { color: var(--navy); }
+.sub-item.active { color: var(--teal); font-weight: 700; }
+
+/* ── 메인 ── */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 12px 26px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+.breadcrumb { font-size:0.78rem; color: var(--muted); display:flex; align-items:center; gap:6px; }
+.breadcrumb span { color: var(--teal); font-weight: 700; }
+.tag {
+  font-size: 0.68rem; background: #EEF9F9; color: var(--teal);
+  border: 1px solid #C0E8E8; border-radius: 20px; padding: 3px 10px;
+  margin-left: 8px;
+}
+
+/* ── 콘텐츠 패널 ── */
+.panels { flex:1; overflow:hidden; position:relative; }
+.panel { display:none; height:100%; overflow-y:auto; padding: 24px 28px; }
+.panel.active { display:block; }
+
+.page-title { font-size:1.5rem; font-weight:900; color:var(--navy); margin-bottom:5px; }
+.page-desc  { font-size:0.82rem; color:var(--muted); margin-bottom:22px; }
+
+/* 요약 카드 */
+.stat-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.stat-card {
+  background: var(--card); border-radius: 12px;
+  padding: 16px 18px; border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(44,62,107,0.06);
+}
+.stat-icon { font-size:1.3rem; margin-bottom:6px; }
+.stat-val  { font-size:1.4rem; font-weight:900; color:var(--navy); }
+.stat-lbl  { font-size:0.7rem; color:var(--muted); margin-top:2px; }
+
+/* 콘텐츠 카드 그리드 */
+.card-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+.card {
+  background: var(--card); border-radius:12px;
+  padding: 18px; border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(44,62,107,0.05);
+  transition: transform .2s, box-shadow .2s;
+  cursor: pointer;
+}
+.card:hover { transform:translateY(-3px); box-shadow:0 6px 18px rgba(44,62,107,0.12); }
+.card-accent { height:4px; border-radius:4px; margin-bottom:12px; }
+.card-title  { font-size:0.88rem; font-weight:700; color:var(--navy); margin-bottom:4px; }
+.card-desc   { font-size:0.72rem; color:var(--muted); line-height:1.55; }
+.card-tag    {
+  display:inline-block; margin-top:10px;
+  font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:10px;
+}
+
+/* 테이블 */
+.table-panel { background:var(--card); border-radius:12px; border:1px solid var(--border); overflow:hidden; margin-bottom:20px; }
+.table-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.table-title  { font-size:0.85rem; font-weight:700; color:var(--navy); }
+.table-action { font-size:0.7rem; color:var(--teal); cursor:pointer; }
+table { width:100%; border-collapse:collapse; }
+th { font-size:0.68rem; color:var(--muted); font-weight:600; text-align:left; padding:10px 18px; border-bottom:1px solid var(--border); background:#FAFCFF; }
+td { font-size:0.75rem; padding:10px 18px; border-bottom:1px solid #F0F4FA; color:var(--text); }
+tr:last-child td { border:none; }
+.dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; }
+
+/* 파스텔 배지 */
+.badge { display:inline-block; font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:8px; }
+.badge-teal   { background:#E0F7F7; color:#2E9B9B; }
+.badge-rose   { background:#FEE9E7; color:#C0504D; }
+.badge-amber  { background:#FFF3DC; color:#C87800; }
+.badge-mint   { background:#E2F7EC; color:#2E7D55; }
+.badge-lav    { background:#EDEAFF; color:#5D52C0; }
+
+/* 섹션 구분선 */
+.section-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+
+/* 검색바 */
+.search-row { display:flex; gap:10px; margin-bottom:18px; }
+.search-input {
+  flex:1; padding:9px 14px; border:1.5px solid var(--border);
+  border-radius:8px; font-size:0.82rem; color:var(--text);
+  font-family:'Noto Sans KR',sans-serif; outline:none;
+  transition: border-color .15s;
+}
+.search-input:focus { border-color:var(--teal); }
+.btn {
+  background:var(--teal); color:#fff; border:none;
+  border-radius:8px; padding:9px 18px; font-size:0.8rem;
+  font-weight:700; cursor:pointer; font-family:'Noto Sans KR',sans-serif;
+  transition:background .15s;
+}
+.btn:hover { background:#38AAAA; }
+.btn-outline {
+  background:#fff; color:var(--teal); border:1.5px solid var(--teal);
+  border-radius:8px; padding:8px 14px; font-size:0.78rem;
+  font-weight:700; cursor:pointer; font-family:'Noto Sans KR',sans-serif;
+}
+
+/* ── 홈 화면 ── */
+.home-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+.home-card {
+  background:var(--card); border-radius:14px;
+  border:1px solid var(--border); padding:22px;
+  box-shadow: 0 2px 10px rgba(44,62,107,0.06);
+  cursor:pointer; transition: transform .2s, box-shadow .2s;
+}
+.home-card:hover { transform:translateY(-4px); box-shadow:0 8px 24px rgba(44,62,107,0.13); }
+.home-card-top { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.home-icon { font-size:1.8rem; }
+.home-part-badge {
+  font-family:'IBM Plex Mono',monospace; font-size:0.7rem; font-weight:700;
+  padding:2px 8px; border-radius:6px;
+}
+.home-card-title { font-size:1rem; font-weight:900; color:var(--navy); margin-bottom:6px; }
+.home-card-desc  { font-size:0.75rem; color:var(--muted); line-height:1.6; }
+.home-card-footer { margin-top:14px; font-size:0.72rem; color:var(--teal); font-weight:700; }
+
+/* 스크롤바 */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-thumb { background:#CBD5E0; border-radius:3px; }
+
+/* 애니메이션 */
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.panel.active > * { animation: fadeUp .35s ease both; }
+.stat-card:nth-child(1){animation-delay:.04s}
+.stat-card:nth-child(2){animation-delay:.08s}
+.stat-card:nth-child(3){animation-delay:.12s}
+.stat-card:nth-child(4){animation-delay:.16s}
+.card:nth-child(1){animation-delay:.05s}
+.card:nth-child(2){animation-delay:.10s}
+.card:nth-child(3){animation-delay:.15s}
+</style>
+</head>
+<body>
+
+<!-- ── 사이드바 ── -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-title">🍱 AI 식품정보<br>시스템</div>
+    <div class="logo-sub">ver 1.0 · Food Intelligence</div>
+  </div>
+  <div class="nav">
+    <div class="nav-label">Navigation</div>
+
+    <div class="part-item" onclick="showPart('home',this)">
+      <div class="part-header">
+        <span class="part-badge">🏠</span>
+        <span class="part-name">홈</span>
+      </div>
+    </div>
+
+    <div class="part-item" onclick="showPart('A',this)">
+      <div class="part-header">
+        <span class="part-badge">A</span>
+        <span class="part-name">신제품개발시스템</span>
+      </div>
+      <div class="sub-menu">
+        <div class="sub-item active" onclick="showSub('A','시장정보분석',event)">시장정보분석</div>
+        <div class="sub-item" onclick="showSub('A','배합비개발',event)">배합비개발</div>
+        <div class="sub-item" onclick="showSub('A','공정리스크확인',event)">공정리스크확인</div>
+        <div class="sub-item" onclick="showSub('A','생산계획서',event)">생산계획서</div>
+        <div class="sub-item" onclick="showSub('A','개발보고서',event)">개발보고서</div>
+      </div>
+    </div>
+
+    <div class="part-item" onclick="showPart('B',this)">
+      <div class="part-header">
+        <span class="part-badge">B</span>
+        <span class="part-name">시장조사 시스템</span>
+      </div>
+      <div class="sub-menu">
+        <div class="sub-item active" onclick="showSub('B','식품시장현황분석',event)">식품시장현황분석</div>
+        <div class="sub-item" onclick="showSub('B','품목제조보고분석',event)">품목제조보고분석</div>
+        <div class="sub-item" onclick="showSub('B','매출집계',event)">신제품 매출 집계</div>
+      </div>
+    </div>
+
+    <div class="part-item" onclick="showPart('C',this)">
+      <div class="part-header">
+        <span class="part-badge">C</span>
+        <span class="part-name">소비자조사</span>
+      </div>
+      <div class="sub-menu">
+        <div class="sub-item active" onclick="showSub('C','페르소나',event)">가상페르소나 만들기</div>
+        <div class="sub-item" onclick="showSub('C','관능검사',event)">관능검사 시스템</div>
+        <div class="sub-item" onclick="showSub('C','컨셉분석',event)">제품 컨셉 점수분석</div>
+      </div>
+    </div>
+
+    <div class="part-item" onclick="showPart('D',this)">
+      <div class="part-header">
+        <span class="part-badge">D</span>
+        <span class="part-name">DB 검색시스템</span>
+      </div>
+      <div class="sub-menu">
+        <div class="sub-item active" onclick="showSub('D','자료등록',event)">자료등록</div>
+        <div class="sub-item" onclick="showSub('D','자료분류',event)">자료분류</div>
+        <div class="sub-item" onclick="showSub('D','자료현황',event)">자료현황보기</div>
+      </div>
+    </div>
+
+    <div class="part-item" onclick="showPart('F',this)">
+      <div class="part-header">
+        <span class="part-badge">F</span>
+        <span class="part-name">러닝시스템</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 메인 ── -->
+<div class="main">
+  <div class="topbar">
+    <div class="breadcrumb" id="breadcrumb">
+      AI 식품정보 시스템 › <span>홈</span>
+    </div>
+    <div>
+      <span class="tag">🟢 시스템 정상</span>
+      <span class="tag">📅 2026-02-18</span>
+    </div>
+  </div>
+
+  <div class="panels">
+
+    <!-- 홈 -->
+    <div class="panel active" id="panel-home">
+      <div class="page-title">🍱 AI 식품정보 시스템</div>
+      <div class="page-desc">파트를 선택하여 시작하세요. 각 파트는 독립적으로 운영됩니다.</div>
+      <div class="home-grid">
+        <div class="home-card" onclick="showPart('A',document.querySelector('[onclick*=\'A\']'))">
+          <div class="home-card-top">
+            <span class="home-icon">🧪</span>
+            <span class="home-part-badge" style="background:#E0F7F7;color:#2E9B9B;">Part A</span>
+          </div>
+          <div class="home-card-title">신제품개발시스템</div>
+          <div class="home-card-desc">시장정보분석 · 배합비개발 · 공정리스크확인 · 생산계획서 · 개발보고서</div>
+          <div class="home-card-footer">→ 바로가기</div>
+        </div>
+        <div class="home-card" onclick="showPart('B',document.querySelectorAll('.part-item')[2])">
+          <div class="home-card-top">
+            <span class="home-icon">📊</span>
+            <span class="home-part-badge" style="background:#FFF3DC;color:#C87800;">Part B</span>
+          </div>
+          <div class="home-card-title">시장조사 시스템</div>
+          <div class="home-card-desc">식품시장현황분석 · 품목제조보고분석 · 신제품 매출 집계</div>
+          <div class="home-card-footer">→ 바로가기</div>
+        </div>
+        <div class="home-card" onclick="showPart('C',document.querySelectorAll('.part-item')[3])">
+          <div class="home-card-top">
+            <span class="home-icon">👥</span>
+            <span class="home-part-badge" style="background:#EDEAFF;color:#5D52C0;">Part C</span>
+          </div>
+          <div class="home-card-title">소비자조사</div>
+          <div class="home-card-desc">가상페르소나 만들기 · 관능검사 시스템 · 제품 컨셉 점수분석</div>
+          <div class="home-card-footer">→ 바로가기</div>
+        </div>
+        <div class="home-card" onclick="showPart('D',document.querySelectorAll('.part-item')[4])">
+          <div class="home-card-top">
+            <span class="home-icon">🗄️</span>
+            <span class="home-part-badge" style="background:#FEE9E7;color:#C0504D;">Part D</span>
+          </div>
+          <div class="home-card-title">DB 검색시스템</div>
+          <div class="home-card-desc">자료등록 · 자료분류 · 자료현황보기</div>
+          <div class="home-card-footer">→ 바로가기</div>
+        </div>
+        <div class="home-card" onclick="showPart('F',document.querySelectorAll('.part-item')[5])">
+          <div class="home-card-top">
+            <span class="home-icon">📚</span>
+            <span class="home-part-badge" style="background:#E2F7EC;color:#2E7D55;">Part F</span>
+          </div>
+          <div class="home-card-title">러닝시스템</div>
+          <div class="home-card-desc">AI 학습 기반 식품 정보 서비스 (준비 중)</div>
+          <div class="home-card-footer">→ 바로가기</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part A -->
+    <div class="panel" id="panel-A">
+      <div class="page-title">🧪 신제품개발시스템</div>
+      <div class="page-desc">시장 정보 분석부터 개발보고서까지 신제품 개발 전 과정을 지원합니다.</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-val">147</div><div class="stat-lbl">진행 중인 프로젝트</div></div>
+        <div class="stat-card"><div class="stat-icon">🧬</div><div class="stat-val">32</div><div class="stat-lbl">배합비 개발 중</div></div>
+        <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-val">5</div><div class="stat-lbl">리스크 항목</div></div>
+        <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-val">89</div><div class="stat-lbl">완료 보고서</div></div>
+      </div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#4ABFBF,#79D7D7)"></div>
+          <div class="card-title">📈 시장정보분석</div>
+          <div class="card-desc">네이버 쇼핑 API 기반 식품 카테고리 시장 현황 및 트렌드를 실시간으로 분석합니다.</div>
+          <span class="card-tag badge-teal">API 연동</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#A89ED6,#C3B9E8)"></div>
+          <div class="card-title">🧬 배합비개발</div>
+          <div class="card-desc">원재료 배합 비율을 설계하고 최적 조합을 도출합니다. 영양성분 자동 계산 포함.</div>
+          <span class="card-tag badge-lav">자동계산</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#F28B82,#F5A89E)"></div>
+          <div class="card-title">⚠️ 공정리스크확인</div>
+          <div class="card-desc">HACCP 기반 공정별 위해요소를 점검하고 리스크 레벨을 평가합니다.</div>
+          <span class="card-tag badge-rose">HACCP</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#FFB347,#FFC97A)"></div>
+          <div class="card-title">📋 생산계획서</div>
+          <div class="card-desc">개발 일정, 원재료 소요량, 생산 수량 계획을 자동으로 문서화합니다.</div>
+          <span class="card-tag badge-amber">문서자동화</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#7DD1A8,#9EE0BF)"></div>
+          <div class="card-title">📝 개발보고서</div>
+          <div class="card-desc">전 과정의 개발 결과를 종합하여 보고서를 자동 생성합니다.</div>
+          <span class="card-tag badge-mint">자동생성</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part B -->
+    <div class="panel" id="panel-B">
+      <div class="page-title">📊 시장조사 시스템</div>
+      <div class="page-desc">식품 시장 현황 데이터를 수집·분석하여 전략적 의사결정을 지원합니다.</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-icon">🛒</div><div class="stat-val">2,847</div><div class="stat-lbl">수집 상품 수</div></div>
+        <div class="stat-card"><div class="stat-icon">🏪</div><div class="stat-val">342</div><div class="stat-lbl">참여 쇼핑몰</div></div>
+        <div class="stat-card"><div class="stat-icon">📂</div><div class="stat-val">15</div><div class="stat-lbl">식품 카테고리</div></div>
+        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">오늘</div><div class="stat-lbl">최종 업데이트</div></div>
+      </div>
+      <div class="search-row">
+        <input class="search-input" placeholder="🔍 검색어 입력 (예: 라면, 음료, 과자...)">
+        <button class="btn">수집 시작</button>
+        <button class="btn-outline">엑셀 저장</button>
+      </div>
+      <div class="table-panel">
+        <div class="table-header">
+          <div class="table-title">📦 최근 수집 상품</div>
+          <div class="table-action">전체보기 →</div>
+        </div>
+        <table>
+          <tr><th>상품명</th><th>카테고리</th><th>최저가</th><th>쇼핑몰</th><th>상태</th></tr>
+          <tr><td>신라면 멀티팩 5입</td><td>라면/면류</td><td>₩3,980</td><td>쿠팡</td><td><span class="dot" style="background:#7DD1A8"></span><span class="badge badge-mint">수집완료</span></td></tr>
+          <tr><td>포카칩 오리지날 66g</td><td>과자/스낵</td><td>₩1,480</td><td>GS Fresh</td><td><span class="badge badge-mint">수집완료</span></td></tr>
+          <tr><td>제주 삼다수 2L×6</td><td>음료/주스</td><td>₩5,900</td><td>마켓컬리</td><td><span class="badge badge-teal">분석중</span></td></tr>
+          <tr><td>맥심 모카골드 100T</td><td>커피/차</td><td>₩18,900</td><td>홈플러스</td><td><span class="badge badge-amber">대기</span></td></tr>
+          <tr><td>하림 닭가슴살 100g</td><td>냉동식품</td><td>₩2,100</td><td>이마트몰</td><td><span class="badge badge-mint">수집완료</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Part C -->
+    <div class="panel" id="panel-C">
+      <div class="page-title">👥 소비자조사</div>
+      <div class="page-desc">AI 기반 소비자 분석으로 타겟 페르소나를 설계하고 제품 컨셉을 검증합니다.</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-icon">🧑‍🤝‍🧑</div><div class="stat-val">24</div><div class="stat-lbl">생성된 페르소나</div></div>
+        <div class="stat-card"><div class="stat-icon">👅</div><div class="stat-val">18</div><div class="stat-lbl">관능검사 완료</div></div>
+        <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-val">4.2</div><div class="stat-lbl">평균 컨셉 점수</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-val">91%</div><div class="stat-lbl">긍정 반응률</div></div>
+      </div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#A89ED6,#C3B9E8)"></div>
+          <div class="card-title">🧑‍🤝‍🧑 가상페르소나 만들기</div>
+          <div class="card-desc">AI가 타겟 소비자 프로필을 자동 생성합니다. 연령·라이프스타일·구매패턴 분석.</div>
+          <span class="card-tag badge-lav">AI 생성</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#4ABFBF,#79D7D7)"></div>
+          <div class="card-title">👅 관능검사 시스템</div>
+          <div class="card-desc">맛·향·식감 등 관능 특성을 체계적으로 평가하고 데이터화합니다.</div>
+          <span class="card-tag badge-teal">데이터화</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#FFB347,#FFC97A)"></div>
+          <div class="card-title">⭐ 제품 컨셉 점수분석</div>
+          <div class="card-desc">소비자 반응 데이터를 기반으로 제품 컨셉의 시장 적합성을 점수화합니다.</div>
+          <span class="card-tag badge-amber">점수화</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part D -->
+    <div class="panel" id="panel-D">
+      <div class="page-title">🗄️ DB 검색시스템</div>
+      <div class="page-desc">식품 관련 자료를 체계적으로 등록·분류·검색할 수 있는 통합 데이터베이스입니다.</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-icon">📥</div><div class="stat-val">1,240</div><div class="stat-lbl">등록 자료 수</div></div>
+        <div class="stat-card"><div class="stat-icon">🗂️</div><div class="stat-val">48</div><div class="stat-lbl">분류 카테고리</div></div>
+        <div class="stat-card"><div class="stat-icon">🔍</div><div class="stat-val">320</div><div class="stat-lbl">이번 달 검색</div></div>
+        <div class="stat-card"><div class="stat-icon">⬆️</div><div class="stat-val">12</div><div class="stat-lbl">오늘 신규 등록</div></div>
+      </div>
+      <div class="section-row">
+        <div class="table-panel">
+          <div class="table-header">
+            <div class="table-title">📥 최근 등록 자료</div>
+            <div class="table-action">+ 새 자료 등록</div>
+          </div>
+          <table>
+            <tr><th>자료명</th><th>분류</th><th>등록일</th></tr>
+            <tr><td>2026 식품트렌드 보고서</td><td><span class="badge badge-teal">시장</span></td><td>02-18</td></tr>
+            <tr><td>HMR 소비자 설문</td><td><span class="badge badge-lav">소비자</span></td><td>02-17</td></tr>
+            <tr><td>라면 원재료 현황</td><td><span class="badge badge-amber">원재료</span></td><td>02-16</td></tr>
+            <tr><td>HACCP 점검 매뉴얼</td><td><span class="badge badge-rose">품질</span></td><td>02-15</td></tr>
+          </table>
+        </div>
+        <div class="table-panel">
+          <div class="table-header">
+            <div class="table-title">🗂️ 카테고리별 현황</div>
+          </div>
+          <table>
+            <tr><th>카테고리</th><th>자료 수</th><th>비율</th></tr>
+            <tr><td>시장조사</td><td>412</td><td><span class="badge badge-teal">33%</span></td></tr>
+            <tr><td>소비자분석</td><td>287</td><td><span class="badge badge-lav">23%</span></td></tr>
+            <tr><td>원재료정보</td><td>231</td><td><span class="badge badge-amber">19%</span></td></tr>
+            <tr><td>품질/규격</td><td>310</td><td><span class="badge badge-rose">25%</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Part F -->
+    <div class="panel" id="panel-F">
+      <div class="page-title">📚 러닝시스템</div>
+      <div class="page-desc">AI 학습 기반 식품 정보 자동화 서비스 — 현재 개발 중입니다.</div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#7DD1A8,#9EE0BF)"></div>
+          <div class="card-title">🤖 AI 자동 분류</div>
+          <div class="card-desc">업로드한 식품 데이터를 AI가 자동으로 카테고리 분류합니다.</div>
+          <span class="card-tag badge-mint">준비 중</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#4ABFBF,#79D7D7)"></div>
+          <div class="card-title">📖 학습 데이터 관리</div>
+          <div class="card-desc">모델 학습에 사용된 데이터셋을 관리하고 성능을 모니터링합니다.</div>
+          <span class="card-tag badge-teal">준비 중</span>
+        </div>
+        <div class="card">
+          <div class="card-accent" style="background:linear-gradient(90deg,#A89ED6,#C3B9E8)"></div>
+          <div class="card-title">📈 학습 성능 리포트</div>
+          <div class="card-desc">각 AI 모델의 정확도, F1 스코어 등 성능 지표를 시각화합니다.</div>
+          <span class="card-tag badge-lav">준비 중</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /panels -->
+</div><!-- /main -->
+
+<script>
+const partPanels = { home:'panel-home', A:'panel-A', B:'panel-B', C:'panel-C', D:'panel-D', F:'panel-F' };
+const partLabels = {
+  home:'홈', A:'신제품개발시스템', B:'시장조사 시스템',
+  C:'소비자조사', D:'DB 검색시스템', F:'러닝시스템'
+};
+
+function showPart(part, el) {
+  // 패널 전환
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById(partPanels[part]);
+  if (target) target.classList.add('active');
+
+  // 사이드바 active
+  document.querySelectorAll('.part-item').forEach(p => p.classList.remove('active'));
+  if (el && el.classList) el.classList.add('active');
+
+  // 브레드크럼
+  document.getElementById('breadcrumb').innerHTML =
+    `AI 식품정보 시스템 › <span>${partLabels[part] || part}</span>`;
+}
+
+function showSub(part, sub, e) {
+  e.stopPropagation();
+  document.querySelectorAll('.sub-item').forEach(s => s.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('breadcrumb').innerHTML =
+    `AI 식품정보 시스템 › <span>${partLabels[part]}</span> › ${sub}`;
+}
+
+// 초기화
+document.querySelector('.part-item').classList.add('active');
+</script>
+</body>
+</html>
